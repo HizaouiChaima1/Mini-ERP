@@ -1,42 +1,36 @@
 package com.erp.stock.config;
 
+import com.erp.rmi.config.RmiBootstrapProperties;
+import com.erp.rmi.support.RmiRegistrySupport;
 import com.erp.stock.rmi.StockServiceRmiImpl;
-import com.erp.rmi.StockServiceRmi;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Bean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.remoting.rmi.RmiServiceExporter;
 
 import java.rmi.RemoteException;
 
 /**
- * Configuration RMI pour le service Stock
- * Exporte le service Stock en tant que service RMI
+ * Publication du registre RMI Stock (voir {@code application.yml : rmi.*}).
  */
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = "rmi.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnBean(StockServiceRmiImpl.class)
 public class RmiStockConfiguration {
 
-    /**
-     * Exporte le service Stock en tant que service RMI
-     * Écoute sur le port 1099 par défaut
-     * 
-     * @return RmiServiceExporter configuré
-     * @throws RemoteException En cas d'erreur RMI
-     */
-    @Bean
-    public RmiServiceExporter stockServiceRmiExporter() throws RemoteException {
-        log.info("Configuration de l'exportation RMI pour le service Stock");
+    private final StockServiceRmiImpl stockServiceRmi;
+    private final RmiBootstrapProperties rmiBootstrapProperties;
 
-        RmiServiceExporter exporter = new RmiServiceExporter();
-        exporter.setServiceName("StockService");
-        exporter.setServiceInterface(StockServiceRmi.class);
-        exporter.setService(new StockServiceRmiImpl());
-        exporter.setRegistryPort(1099);
-        exporter.setRegistryHost("localhost");
-
-        log.info("Service Stock RMI exporté sur rmi://localhost:1099/StockService");
-        return exporter;
+    @PostConstruct
+    public void exportStockRmi() throws RemoteException {
+        var p = rmiBootstrapProperties;
+        log.info("Export RMI Stock : {} sur le port {}", p.getServiceName(), p.getRegistryPort());
+        RmiRegistrySupport.exportService(p.getHostname(), p.getServiceName(), p.getRegistryPort(), stockServiceRmi);
+        log.info("Clients distants peuvent faire lookup : rmi://{}:{}/{}", p.getHostname(), p.getRegistryPort(),
+                p.getServiceName());
     }
-
 }

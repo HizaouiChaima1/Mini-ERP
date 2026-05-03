@@ -4,6 +4,7 @@ import com.erp.rmi.StockServiceRmi;
 import com.erp.rmi.VentesServiceRmi;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.rmi.RemoteException;
@@ -20,7 +21,7 @@ public class RmiCommunicationService {
     private final VentesServiceRmi ventesServiceRmi;
 
     @Autowired(required = false)
-    public RmiCommunicationService(StockServiceRmi stockServiceRmi, VentesServiceRmi ventesServiceRmi) {
+    public RmiCommunicationService(@Lazy StockServiceRmi stockServiceRmi, @Lazy VentesServiceRmi ventesServiceRmi) {
         this.stockServiceRmi = stockServiceRmi;
         this.ventesServiceRmi = ventesServiceRmi;
     }

@@ -1,42 +1,35 @@
 package com.erp.finance.config;
 
 import com.erp.finance.rmi.FinanceServiceRmiImpl;
-import com.erp.rmi.FinanceServiceRmi;
+import com.erp.rmi.config.RmiBootstrapProperties;
+import com.erp.rmi.support.RmiRegistrySupport;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Bean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.remoting.rmi.RmiServiceExporter;
 
 import java.rmi.RemoteException;
 
 /**
- * Configuration RMI pour le service Finance
- * Exporte le service Finance en tant que service RMI
+ * Publication du registre RMI Finance ({@code application.yml : rmi.*}).
  */
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = "rmi.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnBean(FinanceServiceRmiImpl.class)
 public class RmiFinanceConfiguration {
 
-    /**
-     * Exporte le service Finance en tant que service RMI
-     * Écoute sur le port 1101
-     * 
-     * @return RmiServiceExporter configuré
-     * @throws RemoteException En cas d'erreur RMI
-     */
-    @Bean
-    public RmiServiceExporter financeServiceRmiExporter() throws RemoteException {
-        log.info("Configuration de l'exportation RMI pour le service Finance");
+    private final FinanceServiceRmiImpl financeServiceRmi;
+    private final RmiBootstrapProperties rmiBootstrapProperties;
 
-        RmiServiceExporter exporter = new RmiServiceExporter();
-        exporter.setServiceName("FinanceService");
-        exporter.setServiceInterface(FinanceServiceRmi.class);
-        exporter.setService(new FinanceServiceRmiImpl());
-        exporter.setRegistryPort(1101);
-        exporter.setRegistryHost("localhost");
-
-        log.info("Service Finance RMI exporté sur rmi://localhost:1101/FinanceService");
-        return exporter;
+    @PostConstruct
+    public void exportFinanceRmi() throws RemoteException {
+        var p = rmiBootstrapProperties;
+        log.info("Export RMI Finance : {} sur le port {}", p.getServiceName(), p.getRegistryPort());
+        RmiRegistrySupport.exportService(p.getHostname(), p.getServiceName(), p.getRegistryPort(), financeServiceRmi);
+        log.info("Lookup : rmi://{}:{}/{}", p.getHostname(), p.getRegistryPort(), p.getServiceName());
     }
-
 }

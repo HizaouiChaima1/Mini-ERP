@@ -1,86 +1,98 @@
 package com.erp.stock.rmi;
 
 import com.erp.rmi.StockServiceRmi;
+import com.erp.stock.service.StockService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 
-/**
- * Implémentation RMI du service Stock
- * Exporte les fonctionnalités du service Stock en tant que service RMI
- */
 @Slf4j
 @Service
+@ConditionalOnProperty(name = "rmi.enabled", havingValue = "true", matchIfMissing = true)
 public class StockServiceRmiImpl extends UnicastRemoteObject implements StockServiceRmi {
 
     private static final long serialVersionUID = 1L;
 
-    public StockServiceRmiImpl() throws RemoteException {
+    private final StockService stockService;
+
+    public StockServiceRmiImpl(StockService stockService) throws RemoteException {
         super();
-        log.info("StockServiceRmiImpl initialisé");
+        this.stockService = stockService;
+        log.info("StockService RMI relié au service métier StockService");
     }
 
     @Override
     public Integer getProductQuantity(Long productId) throws RemoteException {
         try {
-            log.debug("RMI: Récupération de la quantité pour le produit: {}", productId);
-            // TODO: Implémenter la logique avec le repository
-            // return
-            // stockRepository.findById(productId).map(Product::getQuantity).orElse(0);
-            return 0;
+            return stockService.findById(productId).getQuantiteEnStock();
+        } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Erreur lors de la récupération de la quantité", e);
-            throw new RemoteException("Erreur lors de la récupération de la quantité", e);
+            log.error("RMI Stock getProductQuantity", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public Boolean isProductAvailable(Long productId, Integer quantity) throws RemoteException {
         try {
-            log.debug("RMI: Vérification de disponibilité du produit: {} pour quantité: {}", productId, quantity);
-            // TODO: Implémenter la logique
-            return true;
+            if (quantity == null || quantity <= 0) {
+                return false;
+            }
+            var p = stockService.findById(productId);
+            return p.getQuantiteEnStock() >= quantity;
+        } catch (EntityNotFoundException e) {
+            return false;
         } catch (Exception e) {
-            log.error("Erreur lors de la vérification de disponibilité", e);
-            throw new RemoteException("Erreur lors de la vérification de disponibilité", e);
+            log.error("RMI Stock isProductAvailable", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public Boolean reserveProduct(Long productId, Integer quantity) throws RemoteException {
         try {
-            log.debug("RMI: Réservation du produit: {} pour quantité: {}", productId, quantity);
-            // TODO: Implémenter la logique de réservation
+            if (quantity == null || quantity <= 0) {
+                return false;
+            }
+            stockService.sortieStock(productId, quantity);
             return true;
+        } catch (IllegalStateException e) {
+            log.warn("RMI Stock réservation refusée: {}", e.getMessage());
+            return false;
+        } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Erreur lors de la réservation du produit", e);
-            throw new RemoteException("Erreur lors de la réservation du produit", e);
+            log.error("RMI Stock reserveProduct", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public String getProductName(Long productId) throws RemoteException {
         try {
-            log.debug("RMI: Récupération du nom du produit: {}", productId);
-            // TODO: Implémenter la logique
-            return "Produit";
+            return stockService.findById(productId).getNom();
+        } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Erreur lors de la récupération du nom du produit", e);
-            throw new RemoteException("Erreur lors de la récupération du nom du produit", e);
+            log.error("RMI Stock getProductName", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public Double getProductPrice(Long productId) throws RemoteException {
         try {
-            log.debug("RMI: Récupération du prix du produit: {}", productId);
-            // TODO: Implémenter la logique
-            return 0.0;
+            return stockService.findById(productId).getPrixUnitaire().doubleValue();
+        } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Erreur lors de la récupération du prix du produit", e);
-            throw new RemoteException("Erreur lors de la récupération du prix du produit", e);
+            log.error("RMI Stock getProductPrice", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
-
 }

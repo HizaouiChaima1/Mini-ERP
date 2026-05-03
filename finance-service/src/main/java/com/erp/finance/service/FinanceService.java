@@ -4,7 +4,7 @@ import com.erp.finance.dto.FinanceDto;
 import com.erp.finance.model.Facture;
 import com.erp.finance.model.Facture.StatutFacture;
 import com.erp.finance.model.Paiement;
-import com.erp.finance.repository.FRepository;
+import com.erp.finance.repository.FactureRepository;
 import com.erp.finance.repository.PaiementRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ import java.util.List;
 @Transactional
 public class FinanceService {
 
-    private final FRepository factureRepo;
+    private final FactureRepository factureRepo;
     private final PaiementRepository paiementRepo;
 
     @Transactional(readOnly = true)
@@ -92,6 +92,44 @@ public class FinanceService {
                 .toList();
         enRetard.forEach(f -> f.setStatut(StatutFacture.EN_RETARD));
         factureRepo.saveAll(enRetard);
+    }
+
+    /**
+     * Crée une facture alignée sur le flux Rabbit, ou renvoie l'id existant (pour RMI).
+     */
+    public Long creerOuRecupererFactureLieeCommande(String numeroCommande, String client,
+            BigDecimal montantHTCommercial, StatutFacture statutInitial) {
+        return factureRepo.findByCommandeNumero(numeroCommande).map(Facture::getId).orElseGet(() -> {
+            StatutFacture statut = statutInitial != null ? statutInitial : StatutFacture.NON_PAYEE;
+            String numeroFac = "FAC-" + numeroCommande.replace("CMD-", "");
+            Facture facture = Facture.builder()
+                    .numero(numeroFac)
+                    .commandeNumero(numeroCommande)
+                    .client(client)
+                    .montantHT(montantHTCommercial)
+                    .tauxTVA(new BigDecimal("0.19"))
+                    .dateEcheance(LocalDate.now().plusDays(30))
+                    .statut(statut)
+                    .build();
+            Facture saved = factureRepo.save(facture);
+            return saved.getId();
+        });
+    }
+
+    public void definirStatutFacture(Long id, StatutFacture statut) {
+        Facture f = getFactureOrThrow(id);
+        f.setStatut(statut);
+        factureRepo.save(f);
+    }
+
+    @Transactional(readOnly = true)
+    public BigDecimal totalImpayesTtc() {
+        List<Facture> all = factureRepo.findAll();
+        BigDecimal zero = BigDecimal.ZERO;
+        return all.stream()
+                .filter(f -> f.getStatut() == StatutFacture.NON_PAYEE || f.getStatut() == StatutFacture.EN_RETARD)
+                .map(Facture::getMontantTTC)
+                .reduce(zero, BigDecimal::add);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

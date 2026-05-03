@@ -1,98 +1,157 @@
 package com.erp.finance.rmi;
 
+import com.erp.finance.dto.FinanceDto;
+import com.erp.finance.model.Facture.StatutFacture;
+import com.erp.finance.model.Paiement.ModePaiement;
+import com.erp.finance.service.FinanceService;
 import com.erp.rmi.FinanceServiceRmi;
+import com.erp.rmi.VentesServiceRmi;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.Locale;
 
-/**
- * Implémentation RMI du service Finance
- * Exporte les fonctionnalités du service Finance en tant que service RMI
- */
 @Slf4j
 @Service
+@ConditionalOnProperty(name = "rmi.enabled", havingValue = "true", matchIfMissing = true)
 public class FinanceServiceRmiImpl extends UnicastRemoteObject implements FinanceServiceRmi {
 
     private static final long serialVersionUID = 1L;
 
-    public FinanceServiceRmiImpl() throws RemoteException {
+    private final FinanceService financeService;
+    private final VentesServiceRmi ventesServiceRmi;
+
+    public FinanceServiceRmiImpl(FinanceService financeService, @Lazy VentesServiceRmi ventesServiceRmi)
+            throws RemoteException {
         super();
-        log.info("FinanceServiceRmiImpl initialisé");
+        this.financeService = financeService;
+        this.ventesServiceRmi = ventesServiceRmi;
+        log.info("FinanceService RMI relié au métier + Ventes distant");
+    }
+
+    private StatutFacture parseStatutCreation(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return StatutFacture.NON_PAYEE;
+        }
+        return switch (raw.trim().toUpperCase(Locale.ROOT)) {
+            case "PAID", "PAYEE", "PAYÉE", "PAIDFULLY" -> StatutFacture.PAYEE;
+            case "CANCELLED", "ANNULEE", "ANNULÉE", "ANNULLEE" -> StatutFacture.ANNULEE;
+            default -> StatutFacture.NON_PAYEE;
+        };
+    }
+
+    private StatutFacture parseStatutMaj(String raw) throws RemoteException {
+        if (raw == null || raw.isBlank()) {
+            throw new RemoteException("Statut vide");
+        }
+        String key = raw.trim().toUpperCase(Locale.ROOT);
+        try {
+            return StatutFacture.valueOf(key);
+        } catch (IllegalArgumentException ignored) {
+        }
+        return switch (key) {
+            case "PAID", "PAYÉE", "PAIDFULLY", "COMPLETE" -> StatutFacture.PAYEE;
+            case "UNPAID", "IMPAYEE", "UNPAIDINV" -> StatutFacture.NON_PAYEE;
+            case "OVERDUE", "RETARD", "DELAYED" -> StatutFacture.EN_RETARD;
+            case "CANCELLED" -> StatutFacture.ANNULEE;
+            default -> throw new RemoteException("Statut facture inconnu: " + raw);
+        };
+    }
+
+    private ModePaiement parseMode(String paymentMethod) {
+        if (paymentMethod == null || paymentMethod.isBlank()) {
+            return ModePaiement.VIREMENT;
+        }
+        return switch (paymentMethod.trim().toUpperCase(Locale.ROOT)) {
+            case "CHEQUE", "CHECK" -> ModePaiement.CHEQUE;
+            case "CASH", "ESPECES", "ESPÈCES" -> ModePaiement.ESPECES;
+            case "CB", "CARD", "CARTE", "CARTE_BANCAIRE" -> ModePaiement.CARTE;
+            default -> ModePaiement.VIREMENT;
+        };
     }
 
     @Override
     public Long createInvoice(Long orderId, Double amount, String status) throws RemoteException {
         try {
-            log.debug("RMI: Création d'une facture pour la commande: {}, montant: {}, statut: {}",
-                    orderId, amount, status);
-            // TODO: Implémenter la logique avec le repository
-            return 1L;
+            String numero = ventesServiceRmi.getCommandeNumero(orderId);
+            String client = ventesServiceRmi.getOrderClient(orderId);
+            double montantSource = amount != null && amount > 0 ? amount : ventesServiceRmi.getOrderTotal(orderId);
+            BigDecimal montantHt = BigDecimal.valueOf(montantSource);
+            StatutFacture st = parseStatutCreation(status);
+            return financeService.creerOuRecupererFactureLieeCommande(numero, client, montantHt, st);
+        } catch (RemoteException e) {
+            throw e;
+        } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
         } catch (Exception e) {
-            log.error("Erreur lors de la création de la facture", e);
-            throw new RemoteException("Erreur lors de la création de la facture", e);
+            log.error("RMI Finance createInvoice", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public String getInvoiceStatus(Long invoiceId) throws RemoteException {
         try {
-            log.debug("RMI: Récupération du statut de la facture: {}", invoiceId);
-            // TODO: Implémenter la logique
-            return "DRAFT";
+            return financeService.findFactureById(invoiceId).getStatut().name();
         } catch (Exception e) {
-            log.error("Erreur lors de la récupération du statut de la facture", e);
-            throw new RemoteException("Erreur lors de la récupération du statut de la facture", e);
+            log.error("RMI Finance getInvoiceStatus", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public Boolean updateInvoiceStatus(Long invoiceId, String status) throws RemoteException {
         try {
-            log.debug("RMI: Mise à jour du statut de la facture: {} vers: {}", invoiceId, status);
-            // TODO: Implémenter la logique
+            StatutFacture statut = parseStatutMaj(status);
+            financeService.definirStatutFacture(invoiceId, statut);
             return true;
+        } catch (RemoteException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Erreur lors de la mise à jour du statut de la facture", e);
-            throw new RemoteException("Erreur lors de la mise à jour du statut de la facture", e);
+            log.error("RMI Finance updateInvoiceStatus", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public Double getInvoiceAmount(Long invoiceId) throws RemoteException {
         try {
-            log.debug("RMI: Récupération du montant de la facture: {}", invoiceId);
-            // TODO: Implémenter la logique
-            return 0.0;
+            return financeService.findFactureById(invoiceId).getMontantTTC().doubleValue();
         } catch (Exception e) {
-            log.error("Erreur lors de la récupération du montant de la facture", e);
-            throw new RemoteException("Erreur lors de la récupération du montant de la facture", e);
+            log.error("RMI Finance getInvoiceAmount", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public Long createPayment(Long invoiceId, Double amount, String paymentMethod) throws RemoteException {
         try {
-            log.debug("RMI: Création d'un paiement pour la facture: {}, montant: {}, méthode: {}",
-                    invoiceId, amount, paymentMethod);
-            // TODO: Implémenter la logique
-            return 1L;
+            FinanceDto.PaiementRequest req = FinanceDto.PaiementRequest.builder()
+                    .montant(BigDecimal.valueOf(amount))
+                    .mode(parseMode(paymentMethod))
+                    .reference("RMI-" + System.currentTimeMillis())
+                    .build();
+            FinanceDto.PaiementResponse res = financeService.enregistrerPaiement(invoiceId, req);
+            return res.getId();
         } catch (Exception e) {
-            log.error("Erreur lors de la création du paiement", e);
-            throw new RemoteException("Erreur lors de la création du paiement", e);
+            log.error("RMI Finance createPayment", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
 
     @Override
     public Double getTotalOutstandingBalance() throws RemoteException {
         try {
-            log.debug("RMI: Récupération du solde total des factures impayées");
-            // TODO: Implémenter la logique
-            return 0.0;
+            return financeService.totalImpayesTtc().doubleValue();
         } catch (Exception e) {
-            log.error("Erreur lors de la récupération du solde total", e);
-            throw new RemoteException("Erreur lors de la récupération du solde total", e);
+            log.error("RMI Finance getTotalOutstandingBalance", e);
+            throw new RemoteException(e.getMessage(), e);
         }
     }
-
 }

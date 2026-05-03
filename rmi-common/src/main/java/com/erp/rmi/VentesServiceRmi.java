@@ -57,4 +57,14 @@ public interface VentesServiceRmi extends Remote {
      */
     Integer countOrdersByClient(String clientName) throws RemoteException;
 
+    /**
+     * Numéro métier de la commande (ex. CMD-20250303-121530).
+     */
+    String getCommandeNumero(Long orderId) throws RemoteException;
+
+    /**
+     * Nom du client ayant passé la commande.
+     */
+    String getOrderClient(Long orderId) throws RemoteException;
+
 }

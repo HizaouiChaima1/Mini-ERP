@@ -1,53 +1,41 @@
 package com.erp.finance.config;
 
+import com.erp.rmi.config.RmiBootstrapProperties;
 import com.erp.rmi.StockServiceRmi;
 import com.erp.rmi.VentesServiceRmi;
+import com.erp.rmi.support.RmiServiceProxyFactoryBean;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.remoting.rmi.RmiProxyFactoryBean;
+import org.springframework.context.annotation.Lazy;
 
 /**
- * Configuration des clients RMI pour le service Finance
- * Permet au service Finance d'accéder aux autres services en RMI
+ * Proxies RMI sortants depuis finance-service ({@code rmi.clients.*}).
  */
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
 public class RmiFinanceClientConfiguration {
 
-    /**
-     * Proxy RMI pour accéder au service Stock
-     * 
-     * @return Proxy du service Stock
-     */
+    private final RmiBootstrapProperties rmiBootstrapProperties;
+
     @Bean
+    @Lazy
     @ConditionalOnProperty(name = "rmi.enabled", havingValue = "true", matchIfMissing = true)
-    public RmiProxyFactoryBean stockServiceRmiProxy() {
-        log.info("Configuration du proxy RMI pour le service Stock");
-
-        RmiProxyFactoryBean rmiProxy = new RmiProxyFactoryBean();
-        rmiProxy.setServiceUrl("rmi://stock-service:1099/StockService");
-        rmiProxy.setServiceInterface(StockServiceRmi.class);
-
-        return rmiProxy;
+    public RmiServiceProxyFactoryBean<StockServiceRmi> stockServiceRmiProxy() {
+        String url = rmiBootstrapProperties.getClients().getStock();
+        log.info("Proxy RMI Stock -> {}", url);
+        return new RmiServiceProxyFactoryBean<>(StockServiceRmi.class, url);
     }
 
-    /**
-     * Proxy RMI pour accéder au service Ventes
-     * 
-     * @return Proxy du service Ventes
-     */
     @Bean
+    @Lazy
     @ConditionalOnProperty(name = "rmi.enabled", havingValue = "true", matchIfMissing = true)
-    public RmiProxyFactoryBean ventesServiceRmiProxy() {
-        log.info("Configuration du proxy RMI pour le service Ventes");
-
-        RmiProxyFactoryBean rmiProxy = new RmiProxyFactoryBean();
-        rmiProxy.setServiceUrl("rmi://ventes-service:1100/VentesService");
-        rmiProxy.setServiceInterface(VentesServiceRmi.class);
-
-        return rmiProxy;
+    public RmiServiceProxyFactoryBean<VentesServiceRmi> ventesServiceRmiProxy() {
+        String url = rmiBootstrapProperties.getClients().getVentes();
+        log.info("Proxy RMI Ventes -> {}", url);
+        return new RmiServiceProxyFactoryBean<>(VentesServiceRmi.class, url);
     }
-
 }

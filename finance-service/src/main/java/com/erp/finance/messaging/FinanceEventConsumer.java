@@ -1,7 +1,7 @@
 package com.erp.finance.messaging;
 
 import com.erp.finance.model.Facture;
-import com.erp.finance.repository.FRepository;
+import com.erp.finance.repository.FactureRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
@@ -60,7 +60,7 @@ class FinanceRabbitConfig {
 @Slf4j
 public class FinanceEventConsumer {
 
-    private final FRepository factureRepo;
+    private final FactureRepository factureRepo;
 
     @RabbitListener(queues = FinanceRabbitConfig.FINANCE_QUEUE)
     @SuppressWarnings("null")

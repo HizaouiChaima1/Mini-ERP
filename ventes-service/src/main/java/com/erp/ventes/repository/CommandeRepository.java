@@ -13,4 +13,6 @@ public interface CommandeRepository extends JpaRepository<Commande, Long> {
     Optional<Commande> findByNumero(String numero);
     List<Commande> findByStatut(StatutCommande statut);
     List<Commande> findByClientContainingIgnoreCase(String client);
+
+    long countByClient(String client);
 }

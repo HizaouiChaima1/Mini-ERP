@@ -34,6 +34,12 @@ erp:
 
 rmi:
   enabled: ${RMI_ENABLED:true}
+  hostname: ${RMI_PUBLIC_HOSTNAME:localhost}
+  registry-port: 1100
+  service-name: VentesService
+  clients:
+    stock: ${RMI_STOCK_URL:rmi://localhost:1099/StockService}
+    finance: ${RMI_FINANCE_URL:rmi://localhost:1101/FinanceService}
 
 management:
   endpoints:

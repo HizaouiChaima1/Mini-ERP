@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
 
 @Service
@@ -35,21 +36,14 @@ public class FinanceService {
 
     @Transactional(readOnly = true)
     public FinanceDto.DashboardResponse getDashboard() {
-        List<Facture> all = factureRepo.findAll();
-        BigDecimal ca = all.stream()
-                .filter(f -> f.getStatut() == StatutFacture.PAYEE)
-                .map(Facture::getMontantHT)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal caTTC = all.stream()
-                .filter(f -> f.getStatut() == StatutFacture.PAYEE)
-                .map(Facture::getMontantTTC)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal ca = factureRepo.sumMontantHtByStatut(StatutFacture.PAYEE);
+        BigDecimal caTTC = factureRepo.sumMontantTtcByStatut(StatutFacture.PAYEE);
 
         return FinanceDto.DashboardResponse.builder()
-                .totalFactures(all.size())
-                .facturesNonPayees(all.stream().filter(f -> f.getStatut() == StatutFacture.NON_PAYEE).count())
-                .facturesPayees(all.stream().filter(f -> f.getStatut() == StatutFacture.PAYEE).count())
-                .facturesEnRetard(all.stream().filter(f -> f.getStatut() == StatutFacture.EN_RETARD).count())
+                .totalFactures(factureRepo.count())
+                .facturesNonPayees(factureRepo.countByStatut(StatutFacture.NON_PAYEE))
+                .facturesPayees(factureRepo.countByStatut(StatutFacture.PAYEE))
+                .facturesEnRetard(factureRepo.countByStatut(StatutFacture.EN_RETARD))
                 .chiffreAffairesHT(ca)
                 .chiffreAffairesTTC(caTTC)
                 .build();
@@ -67,29 +61,25 @@ public class FinanceService {
                 .mode(req.getMode())
                 .reference(req.getReference())
                 .build();
-        @SuppressWarnings("null")
         Paiement saved = paiementRepo.save(paiement);
-        paiement = saved;
 
         facture.setStatut(StatutFacture.PAYEE);
         facture.setDatePaiement(LocalDate.now());
         factureRepo.save(facture);
 
         return FinanceDto.PaiementResponse.builder()
-                .id(paiement.getId())
+                .id(saved.getId())
                 .factureId(factureId)
-                .montant(paiement.getMontant())
-                .mode(paiement.getMode())
-                .reference(paiement.getReference())
-                .createdAt(paiement.getCreatedAt())
+                .montant(saved.getMontant())
+                .mode(saved.getMode())
+                .reference(saved.getReference())
+                .createdAt(saved.getCreatedAt())
                 .build();
     }
 
     public void marquerEnRetard() {
-        List<Facture> enRetard = factureRepo.findByStatut(StatutFacture.NON_PAYEE)
-                .stream()
-                .filter(f -> f.getDateEcheance().isBefore(LocalDate.now()))
-                .toList();
+        List<Facture> enRetard = factureRepo.findByStatutAndDateEcheanceBefore(
+                StatutFacture.NON_PAYEE, LocalDate.now());
         enRetard.forEach(f -> f.setStatut(StatutFacture.EN_RETARD));
         factureRepo.saveAll(enRetard);
     }
@@ -124,20 +114,14 @@ public class FinanceService {
 
     @Transactional(readOnly = true)
     public BigDecimal totalImpayesTtc() {
-        List<Facture> all = factureRepo.findAll();
-        BigDecimal zero = BigDecimal.ZERO;
-        return all.stream()
-                .filter(f -> f.getStatut() == StatutFacture.NON_PAYEE || f.getStatut() == StatutFacture.EN_RETARD)
-                .map(Facture::getMontantTTC)
-                .reduce(zero, BigDecimal::add);
+        return factureRepo.sumMontantTtcByStatutIn(EnumSet.of(StatutFacture.NON_PAYEE, StatutFacture.EN_RETARD));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
     @SuppressWarnings("null")
     private Facture getFactureOrThrow(Long id) {
-        Long findId = id;
-        return factureRepo.findById(findId)
+        return factureRepo.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Facture introuvable: " + id));
     }
 

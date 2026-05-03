@@ -45,13 +45,8 @@ class RabbitMQConfig {
     @Bean
     @SuppressWarnings("null")
     RabbitTemplate rabbitTemplate(ConnectionFactory cf, Jackson2JsonMessageConverter conv) {
-        @SuppressWarnings("null")
         RabbitTemplate t = new RabbitTemplate(cf);
-        @SuppressWarnings("null")
-        RabbitTemplate result = t;
-        @SuppressWarnings("null")
-        RabbitTemplate setResult = result;
-        setResult.setMessageConverter(conv);
+        t.setMessageConverter(conv);
         return t;
     }
 }
@@ -75,7 +70,7 @@ public class VentesEventPublisher {
                         .toList(),
                 LocalDateTime.now());
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.COMMANDE_CREATED, event);
-        log.info("🛒 Commande created event published: {}", commande.getNumero());
+        log.info("Commande created event published: {}", commande.getNumero());
     }
 
     public record CommandeCreatedEvent(

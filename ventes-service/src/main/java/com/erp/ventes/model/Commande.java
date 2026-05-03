@@ -2,6 +2,7 @@ package com.erp.ventes.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -56,8 +57,8 @@ public class Commande {
 
     public void recalculerTotal() {
         this.montantTotal = lignes.stream()
-            .map(LigneCommande::getSousTotal)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .map(LigneCommande::getSousTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     public enum StatutCommande {

@@ -45,13 +45,10 @@ class FinanceRabbitConfig {
     }
 
     @Bean
-    @SuppressWarnings("null")
     RabbitTemplate rabbitTemplate(ConnectionFactory cf, Jackson2JsonMessageConverter conv) {
-        RabbitTemplate t = new RabbitTemplate(cf);
-        RabbitTemplate result = t;
-        RabbitTemplate setResult = result;
-        setResult.setMessageConverter(conv);
-        return result;
+        RabbitTemplate template = new RabbitTemplate(cf);
+        template.setMessageConverter(conv);
+        return template;
     }
 }
 

@@ -54,11 +54,9 @@ public class StockService {
                 .quantiteEnStock(req.getQuantiteEnStock())
                 .seuilAlerte(req.getSeuilAlerte())
                 .build();
-        @SuppressWarnings("null")
         Produit saved = repo.save(produit);
-        produit = saved;
-        publisher.publishStockUpdated(produit);
-        return toResponse(produit);
+        publisher.publishStockUpdated(saved);
+        return toResponse(saved);
     }
 
     public ProduitDto.Response update(Long id, ProduitDto.Request req) {
@@ -97,19 +95,17 @@ public class StockService {
 
     @SuppressWarnings("null")
     public void delete(Long id) {
-        boolean exists = repo.existsById(id);
-        if (!exists)
+        if (!repo.existsById(id)) {
             throw new EntityNotFoundException("Produit introuvable: " + id);
-        Long deleteId = id;
-        repo.deleteById(deleteId);
+        }
+        repo.deleteById(id);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
     @SuppressWarnings("null")
     private Produit getOrThrow(Long id) {
-        Long findId = id;
-        return repo.findById(findId).orElseThrow(() -> new EntityNotFoundException("Produit introuvable: " + id));
+        return repo.findById(id).orElseThrow(() -> new EntityNotFoundException("Produit introuvable: " + id));
     }
 
     private void checkAlerte(Produit p) {

@@ -2,6 +2,7 @@ package com.erp.ventes.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
 
 @Entity

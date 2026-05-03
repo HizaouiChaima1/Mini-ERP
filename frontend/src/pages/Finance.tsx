@@ -42,6 +42,8 @@ export default function Finance() {
     mode: 'VIREMENT',
     reference: '',
   })
+  const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false)
 
   const fetchInvoices = useCallback(async () => {
     try {
@@ -79,22 +81,68 @@ export default function Finance() {
     fetchData()
   }, [fetchData])
 
+  /** Montants API (BigDecimal) peuvent arriver comme nombre ou chaîne selon la sérialisation. */
+  function parseInvoiceAmount(raw: unknown): number {
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      const n = Number.parseFloat(raw)
+      return Number.isFinite(n) ? n : Number.NaN
+    }
+    return Number.NaN
+  }
+
   const handleRecordPayment = async (e: FormEvent) => {
     e.preventDefault()
+    setPaymentError(null)
     try {
       if (!paymentForm) return
+
+      const ttc = parseInvoiceAmount(paymentForm.montantTTC)
+      const paidPartial =
+        paymentForm.paiements?.reduce((sum, p) => {
+          const cur = parseInvoiceAmount(p?.montant)
+          return sum + (Number.isFinite(cur) ? cur : 0)
+        }, 0) ?? 0
+      const remaining = Number.isFinite(ttc) ? Math.max(0, ttc - (paymentForm.statut === 'PAYEE' ? ttc : paidPartial)) : Number.NaN
+
+      const montant = Number.parseFloat(paymentData.montant.replace(',', '.'))
+      if (!Number.isFinite(montant) || montant <= 0) {
+        setPaymentError('Indiquez un montant valide (supérieur à 0).')
+        return
+      }
+      if (Number.isFinite(remaining) && montant > remaining + 1e-6) {
+        setPaymentError(`Le montant dépasse le solde à payer (${remaining.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}).`)
+        return
+      }
+
+      setPaymentSubmitting(true)
       await financeAPI.recordPayment(paymentForm.id, {
-        montant: parseFloat(paymentData.montant),
+        montant,
+        /** Doit correspondre à l'énumération serveur ModePaiement */
         mode: paymentData.mode,
-        reference: paymentData.reference,
+        reference: paymentData.reference.trim() || undefined,
       })
       setPaymentForm(null)
       setPaymentData({ montant: '', mode: 'VIREMENT', reference: '' })
-      fetchData()
+      await fetchData()
     } catch (error: unknown) {
       console.error('Error recording payment:', error)
-      alert('Erreur lors de l\'enregistrement du paiement')
+      const axiosErr = error as { response?: { data?: { detail?: string }; status?: number } }
+      const detail =
+        typeof axiosErr.response?.data?.detail === 'string'
+          ? axiosErr.response.data.detail
+          : "Impossible d'enregistrer le paiement (vérifiez le montant et le mode)."
+      setPaymentError(detail)
+    } finally {
+      setPaymentSubmitting(false)
     }
+  }
+
+  /** Ouvre le formulaire et réinitialise les messages du formulaire précédent. */
+  function openPaymentForm(invoice: Invoice) {
+    setPaymentError(null)
+    setPaymentData({ montant: '', mode: 'VIREMENT', reference: '' })
+    setPaymentForm(invoice)
   }
 
   if (loading) {
@@ -183,49 +231,82 @@ export default function Finance() {
       )}
 
       {paymentForm && (
-        <form onSubmit={handleRecordPayment} className="bg-white rounded-lg shadow p-6 mb-6">
+        <form
+          onSubmit={handleRecordPayment}
+          noValidate
+          className="bg-white rounded-lg shadow p-6 mb-6 border border-gray-100"
+        >
           <h3 className="font-bold text-lg mb-4">Enregistrer un paiement - Facture #{paymentForm.id}</h3>
+          {paymentError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {paymentError}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <input
-              type="number"
-              placeholder="Montant"
-              value={paymentData.montant}
-              onChange={(e) => setPaymentData({ ...paymentData, montant: e.target.value })}
-              className="border rounded px-3 py-2"
-              step="0.01"
-              required
-              max={Number(paymentForm.montantTTC ?? 0)}
-            />
-            <select
-              value={paymentData.mode}
-              onChange={(e) => setPaymentData({ ...paymentData, mode: e.target.value })}
-              className="border rounded px-3 py-2"
-            >
-              <option value="VIREMENT">Virement</option>
-              <option value="CHEQUE">Chèque</option>
-              <option value="CASH">Espèces</option>
-              <option value="CB">Carte Bancaire</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Référence (ex: VIR-2024-001)"
-              value={paymentData.reference}
-              onChange={(e) => setPaymentData({ ...paymentData, reference: e.target.value })}
-              className="border rounded px-3 py-2 md:col-span-2"
-              required
-            />
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Montant (TND){' '}
+                <span className="font-normal text-gray-500">
+                  — max&nbsp;
+                  {(parseInvoiceAmount(paymentForm.montantTTC) || 0).toLocaleString('fr-FR', {
+                    style: 'currency',
+                    currency: 'TND',
+                  })}
+                </span>
+              </label>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="ex: 350.500"
+                value={paymentData.montant}
+                onChange={(e) => setPaymentData({ ...paymentData, montant: e.target.value })}
+                className="w-full border rounded px-3 py-2"
+                aria-invalid={!!paymentError}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Mode</label>
+              <select
+                value={paymentData.mode}
+                onChange={(e) => setPaymentData({ ...paymentData, mode: e.target.value })}
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="VIREMENT">Virement</option>
+                <option value="CHEQUE">Chèque</option>
+                {/* Noms conformes au backend ModePaiement : ESPECES, CARTE */}
+                <option value="ESPECES">Espèces</option>
+                <option value="CARTE">Carte bancaire</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Référence <span className="text-gray-400">(optionnel)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="ex: VIR-2024-001"
+                value={paymentData.reference}
+                onChange={(e) => setPaymentData({ ...paymentData, reference: e.target.value })}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
           </div>
           <div className="flex gap-2">
             <button
               type="submit"
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              disabled={paymentSubmitting}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-60"
             >
-              Enregistrer
+              {paymentSubmitting ? 'Enregistrement…' : 'Enregistrer'}
             </button>
             <button
               type="button"
-              onClick={() => setPaymentForm(null)}
-              className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+              disabled={paymentSubmitting}
+              onClick={() => {
+                setPaymentForm(null)
+                setPaymentError(null)
+              }}
+              className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 disabled:opacity-60"
             >
               Annuler
             </button>
@@ -329,7 +410,7 @@ export default function Finance() {
 
               {remaining > 0 && invoice.statut !== 'ANNULEE' && (
                 <button
-                  onClick={() => setPaymentForm(invoice)}
+                  onClick={() => openPaymentForm(invoice)}
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded flex items-center justify-center hover:bg-blue-700"
                 >
                   <CreditCard className="w-4 h-4 mr-2" />

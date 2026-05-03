@@ -32,6 +32,13 @@ erp:
 
 rmi:
   enabled: ${RMI_ENABLED:true}
+  # Hostname inclus dans les stubs (Compose/K8s : nom du service ou IP publique accessible aux autres JVM)
+  hostname: ${RMI_PUBLIC_HOSTNAME:localhost}
+  registry-port: 1099
+  service-name: StockService
+  clients:
+    ventes: ${RMI_VENTES_URL:rmi://localhost:1100/VentesService}
+    finance: ${RMI_FINANCE_URL:rmi://localhost:1101/FinanceService}
 
 management:
   endpoints:

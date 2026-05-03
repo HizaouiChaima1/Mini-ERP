@@ -1,0 +1,14 @@
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\repository\PaiementRepository.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\config\RmiFinanceClientConfiguration.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\service\RmiCommunicationService.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\controller\FinanceController.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\model\Paiement.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\repository\FactureRepository.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\model\Facture.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\config\RmiFinanceConfiguration.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\rmi\FinanceServiceRmiImpl.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\dto\FinanceDto.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\service\FinanceService.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\FinanceServiceApplication.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\exception\GlobalExceptionHandler.java
+C:\Users\ADMIN\mini_erp\finance-service\src\main\java\com\erp\finance\messaging\FinanceEventConsumer.java

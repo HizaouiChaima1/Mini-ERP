@@ -31,7 +31,7 @@ public class VentesService {
 
     @Transactional(readOnly = true)
     public List<CommandeDto.Response> findAll() {
-        return repo.findAll().stream().map(this::toResponse).toList();
+        return repo.findAllWithLignes().stream().map(this::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -41,6 +41,9 @@ public class VentesService {
 
     public CommandeDto.Response creerCommande(CommandeDto.Request req) {
         List<LigneCommande> lignes = new ArrayList<>();
+        /** Une entrée par ligne de commande (même référénce répété possible) pour éviter un second passage Feign. */
+        record LigneAvecProduit(CommandeDto.LigneRequest ligne, StockClient.ProduitResponse produit) {}
+        List<LigneAvecProduit> lignesVerifiees = new ArrayList<>();
 
         // Vérification stock via Feign (appel synchrone)
         for (CommandeDto.LigneRequest ligneReq : req.getLignes()) {
@@ -57,6 +60,7 @@ public class VentesService {
                     .prixUnitaire(produit.getPrixUnitaire())
                     .sousTotal(sousTotal)
                     .build());
+            lignesVerifiees.add(new LigneAvecProduit(ligneReq, produit));
         }
 
         String numero = "CMD-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
@@ -67,12 +71,7 @@ public class VentesService {
                 .lignes(new ArrayList<>())
                 .build();
 
-        @SuppressWarnings("null")
         Commande saved = repo.save(commande);
-        commande = saved;
-        @SuppressWarnings("null")
-        Commande result = saved;
-        commande = result;
 
         for (LigneCommande ligne : lignes) {
             ligne.setCommande(saved);
@@ -82,11 +81,10 @@ public class VentesService {
         saved.recalculerTotal();
         saved = repo.save(saved);
 
-        // Décrémenter stock via Feign
-        for (CommandeDto.LigneRequest ligneReq : req.getLignes()) {
-            StockClient.ProduitResponse produit = stockClient.getProduitByReference(ligneReq.getProduitReference());
-            stockClient.sortieStock(produit.getId(),
-                    new StockClient.MouvementRequest(ligneReq.getQuantite(), "Commande " + numero));
+        // Décrémenter stock via Feign (réutilise les produits déjà chargés)
+        for (LigneAvecProduit lp : lignesVerifiees) {
+            stockClient.sortieStock(lp.produit().getId(),
+                    new StockClient.MouvementRequest(lp.ligne().getQuantite(), "Commande " + numero));
         }
 
         // Publier event async vers Finance
@@ -198,8 +196,7 @@ public class VentesService {
 
     @SuppressWarnings("null")
     private Commande getOrThrow(Long id) {
-        Long findId = id;
-        return repo.findById(findId).orElseThrow(() -> new EntityNotFoundException("Commande introuvable: " + id));
+        return repo.findById(id).orElseThrow(() -> new EntityNotFoundException("Commande introuvable: " + id));
     }
 
     private CommandeDto.Response toResponse(Commande c) {

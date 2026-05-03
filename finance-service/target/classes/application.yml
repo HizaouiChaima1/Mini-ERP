@@ -24,6 +24,12 @@ spring:
 
 rmi:
   enabled: ${RMI_ENABLED:true}
+  hostname: ${RMI_PUBLIC_HOSTNAME:localhost}
+  registry-port: 1101
+  service-name: FinanceService
+  clients:
+    stock: ${RMI_STOCK_URL:rmi://localhost:1099/StockService}
+    ventes: ${RMI_VENTES_URL:rmi://localhost:1100/VentesService}
 
 management:
   endpoints:

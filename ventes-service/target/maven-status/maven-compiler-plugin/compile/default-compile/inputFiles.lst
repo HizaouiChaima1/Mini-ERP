@@ -1,0 +1,14 @@
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\dto\CommandeDto.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\rmi\VentesServiceRmiImpl.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\client\StockClient.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\model\LigneCommande.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\repository\CommandeRepository.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\service\VentesService.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\exception\GlobalExceptionHandler.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\service\RmiCommunicationService.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\messaging\VentesEventPublisher.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\config\RmiVentesClientConfiguration.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\model\Commande.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\config\RmiVentesConfiguration.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\controller\VentesController.java
+C:\Users\ADMIN\mini_erp\ventes-service\src\main\java\com\erp\ventes\VentesServiceApplication.java

@@ -1,18 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { salesAPI, stockAPI } from '../api/client'
 import { Loader, Plus, Check, Truck, X, AlertCircle } from 'lucide-react'
 
 interface Order {
   id: number
+  numero?: string
   client: string
   statut: string
-  dateCommande: string
-  total: number
+  createdAt: string
+  montantTotal: number
   lignes: Array<{
     produitReference: string
+    produitNom?: string
     quantite: number
     prixUnitaire: number
+    sousTotal?: number
   }>
+}
+
+interface ProductSummary {
+  id: number
+  reference: string
+  nom: string
 }
 
 export default function Sales() {
@@ -20,48 +29,48 @@ export default function Sales() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [products, setProducts] = useState<any[]>([])
+  const [products, setProducts] = useState<ProductSummary[]>([])
   const [formData, setFormData] = useState({
     client: '',
     lignes: [{ produitReference: '', quantite: '' }],
   })
 
-  useEffect(() => {
-    fetchBoth()
-  }, [])
-
-  const fetchBoth = async () => {
-    try {
-      setError(null)
-      await Promise.all([fetchOrders(), fetchProducts()])
-    } catch (err: any) {
-      setError('Erreur lors du chargement')
-    }
-  }
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const res = await salesAPI.getOrders()
       setOrders(res.data || [])
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching orders:', error)
       setOrders([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       const res = await stockAPI.getProducts()
       setProducts(res.data || [])
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching products:', error)
       setProducts([])
     }
-  }
+  }, [])
 
-  const handleCreateOrder = async (e: React.FormEvent) => {
+  const fetchBoth = useCallback(async () => {
+    try {
+      setError(null)
+      await Promise.all([fetchOrders(), fetchProducts()])
+    } catch {
+      setError('Erreur lors du chargement')
+    }
+  }, [fetchOrders, fetchProducts])
+
+  useEffect(() => {
+    fetchBoth()
+  }, [fetchBoth])
+
+  const handleCreateOrder = async (e: FormEvent) => {
     e.preventDefault()
     try {
       const orderData = {
@@ -251,11 +260,13 @@ export default function Sales() {
               <div>
                 <h3 className="font-bold text-lg text-gray-900">Commande #{order.id}</h3>
                 <p className="text-sm text-gray-600">Client: {order.client}</p>
-                <p className="text-sm text-gray-600">Date: {new Date(order.dateCommande).toLocaleDateString('fr-FR')}</p>
+                <p className="text-sm text-gray-600">
+                  Date: {order.createdAt ? new Date(order.createdAt).toLocaleDateString('fr-FR') : '—'}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-gray-900">
-                  {order.total?.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
+                  {(order.montantTotal ?? 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
                 </p>
                 <span className={`inline-block px-3 py-1 rounded text-sm font-semibold ${
                   order.statut === 'CONFIRMEE' ? 'bg-green-100 text-green-800' :
@@ -271,7 +282,9 @@ export default function Sales() {
             <div className="mb-4 text-sm text-gray-600">
               <p className="font-semibold mb-2">Produits:</p>
               {order.lignes?.map((ligne, idx) => (
-                <p key={idx}>{ligne.produitReference} x{ligne.quantite}</p>
+                <p key={idx}>
+                  {ligne.produitNom ?? ligne.produitReference} × {ligne.quantite}
+                </p>
               ))}
             </div>
 

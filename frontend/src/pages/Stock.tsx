@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { stockAPI } from '../api/client'
 import { Loader, Plus, Trash2, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react'
 
@@ -33,7 +33,7 @@ export default function Stock() {
       setError(null)
       const res = await stockAPI.getProducts()
       setProducts(res.data || [])
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching products:', err)
       setError('Impossible de charger les produits')
       setProducts([])
@@ -42,7 +42,7 @@ export default function Stock() {
     }
   }
 
-  const handleCreateProduct = async (e: React.FormEvent) => {
+  const handleCreateProduct = async (e: FormEvent) => {
     e.preventDefault()
     try {
       await stockAPI.createProduct({
@@ -55,9 +55,14 @@ export default function Stock() {
       setFormData({ reference: '', nom: '', prixUnitaire: '', quantiteEnStock: '', seuilAlerte: '' })
       setShowForm(false)
       fetchProducts()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating product:', error)
-      alert('Erreur: ' + (error?.response?.data?.message || error?.message || 'Impossible de créer le produit'))
+      let msg = 'Impossible de créer le produit'
+      if (error && typeof error === 'object' && 'response' in error) {
+        const data = (error as { response?: { data?: { message?: unknown } } }).response?.data
+        if (data?.message !== undefined && data.message !== null) msg = String(data.message)
+      } else if (error instanceof Error) msg = error.message
+      alert('Erreur: ' + msg)
     }
   }
 
@@ -67,7 +72,7 @@ export default function Stock() {
       try {
         await stockAPI.addStock(productId, parseInt(quantity))
         fetchProducts()
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error adding stock:', error)
         alert('Erreur lors de l\'ajout de stock')
       }
@@ -80,7 +85,7 @@ export default function Stock() {
       try {
         await stockAPI.removeStock(productId, parseInt(quantity))
         fetchProducts()
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error removing stock:', error)
         alert('Erreur lors du retrait de stock')
       }
@@ -92,7 +97,7 @@ export default function Stock() {
       try {
         await stockAPI.deleteProduct(productId)
         fetchProducts()
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error deleting product:', error)
         alert('Erreur lors de la suppression')
       }

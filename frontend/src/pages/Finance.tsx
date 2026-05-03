@@ -1,19 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { financeAPI } from '../api/client'
 import { Loader, CreditCard, AlertCircle, TrendingUp } from 'lucide-react'
 
 interface Invoice {
   id: number
-  commandeId: number
+  numero?: string
+  commandeNumero?: string
   client: string
-  montant: number
+  montantHT?: number
+  montantTTC?: number
   statut: string
-  dateFacture: string
-  paiements: Array<{
+  dateEcheance?: string
+  datePaiement?: string
+  createdAt?: string
+  paiements?: Array<{
     montant: number
     mode: string
     reference: string
-    date: string
+    date?: string
+    createdAt?: string
   }>
 }
 
@@ -31,52 +36,53 @@ export default function Finance() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [paymentForm, setPaymentForm] = useState<any>(null)
+  const [paymentForm, setPaymentForm] = useState<Invoice | null>(null)
   const [paymentData, setPaymentData] = useState({
     montant: '',
     mode: 'VIREMENT',
     reference: '',
   })
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  const fetchData = async () => {
-    try {
-      setError(null)
-      await Promise.all([fetchInvoices(), fetchDashboard()])
-    } catch (err: any) {
-      console.error('Error fetching data:', err)
-      setError('Impossible de charger les données')
-    }
-  }
-
-  const fetchInvoices = async () => {
+  const fetchInvoices = useCallback(async () => {
     try {
       const res = await financeAPI.getInvoices()
       setInvoices(res.data || [])
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching invoices:', err)
       setInvoices([])
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(async () => {
     try {
       const res = await financeAPI.getDashboard()
       setDashboard(res.data || null)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching dashboard:', err)
       setDashboard(null)
     }
-  }
+  }, [])
 
-  const handleRecordPayment = async (e: React.FormEvent) => {
+  const fetchData = useCallback(async () => {
+    try {
+      setError(null)
+      await Promise.all([fetchInvoices(), fetchDashboard()])
+    } catch (err: unknown) {
+      console.error('Error fetching data:', err)
+      setError('Impossible de charger les données')
+    }
+  }, [fetchInvoices, fetchDashboard])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const handleRecordPayment = async (e: FormEvent) => {
     e.preventDefault()
     try {
+      if (!paymentForm) return
       await financeAPI.recordPayment(paymentForm.id, {
         montant: parseFloat(paymentData.montant),
         mode: paymentData.mode,
@@ -85,7 +91,7 @@ export default function Finance() {
       setPaymentForm(null)
       setPaymentData({ montant: '', mode: 'VIREMENT', reference: '' })
       fetchData()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error recording payment:', error)
       alert('Erreur lors de l\'enregistrement du paiement')
     }
@@ -188,7 +194,7 @@ export default function Finance() {
               className="border rounded px-3 py-2"
               step="0.01"
               required
-              max={paymentForm.montant}
+              max={Number(paymentForm.montantTTC ?? 0)}
             />
             <select
               value={paymentData.mode}
@@ -229,13 +235,16 @@ export default function Finance() {
 
       <div className="space-y-4">
         {invoices.map((invoice) => {
-          // Guard against invalid data
-          if (!invoice?.montant || typeof invoice.montant !== 'number') {
+          const ttc = Number(invoice?.montantTTC ?? NaN)
+          if (invoice == null || typeof invoice.id !== 'number' || Number.isNaN(ttc)) {
             return null
           }
-          
-          const paidAmount = invoice.paiements?.reduce((sum, p) => sum + (p?.montant || 0), 0) || 0
-          const remaining = invoice.montant - paidAmount
+
+          const paidPartial =
+            invoice.paiements?.reduce((sum, p) => sum + Number(p?.montant ?? 0), 0) ?? 0
+          const paidAmount = invoice.statut === 'PAYEE' ? ttc : paidPartial
+          const remaining = Math.max(0, ttc - paidAmount)
+          const factureDateRaw = invoice.createdAt ?? invoice.dateEcheance
 
           return (
             <div key={invoice.id} className="bg-white rounded-lg shadow p-6">
@@ -251,7 +260,7 @@ export default function Finance() {
                 <div>
                   <p className="text-sm text-gray-600">Date</p>
                   <p className="font-bold text-gray-900">
-                    {invoice.dateFacture ? new Date(invoice.dateFacture).toLocaleDateString('fr-FR') : 'N/A'}
+                    {factureDateRaw ? new Date(factureDateRaw).toLocaleDateString('fr-FR') : 'N/A'}
                   </p>
                 </div>
               </div>
@@ -260,7 +269,7 @@ export default function Finance() {
                 <div className="bg-blue-50 rounded p-3">
                   <p className="text-sm text-gray-600">Montant Total</p>
                   <p className="font-bold text-lg text-blue-600">
-                    {(invoice.montant || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
+                    {ttc.toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}
                   </p>
                 </div>
                 <div className="bg-green-50 rounded p-3">
@@ -278,12 +287,26 @@ export default function Finance() {
               </div>
 
               <div className="mb-4">
-                <span className={`inline-block px-3 py-1 rounded text-sm font-semibold ${
-                  invoice.statut === 'PAYÉE' ? 'bg-green-100 text-green-800' :
-                  invoice.statut === 'PARTIELLE' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
-                }`}>
-                  {invoice.statut}
+                <span
+                  className={`inline-block px-3 py-1 rounded text-sm font-semibold ${
+                    invoice.statut === 'PAYEE'
+                      ? 'bg-green-100 text-green-800'
+                      : invoice.statut === 'EN_RETARD'
+                        ? 'bg-orange-100 text-orange-800'
+                        : invoice.statut === 'ANNULEE'
+                          ? 'bg-gray-100 text-gray-800'
+                          : 'bg-red-100 text-red-800'
+                  }`}
+                >
+                  {invoice.statut === 'PAYEE'
+                    ? 'Payée'
+                    : invoice.statut === 'NON_PAYEE'
+                      ? 'Non payée'
+                      : invoice.statut === 'EN_RETARD'
+                        ? 'En retard'
+                        : invoice.statut === 'ANNULEE'
+                          ? 'Annulée'
+                          : invoice.statut}
                 </span>
               </div>
 
@@ -293,15 +316,18 @@ export default function Finance() {
                   <div className="space-y-1 text-sm text-gray-600">
                     {invoice.paiements.map((payment, idx) => (
                       <p key={idx}>
-                        • {payment?.mode || 'N/A'}: {(payment?.montant || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })} 
-                        ({payment?.reference || 'N/A'}) - {payment?.date ? new Date(payment.date).toLocaleDateString('fr-FR') : 'N/A'}
+                        • {payment?.mode || 'N/A'}: {(payment?.montant || 0).toLocaleString('fr-FR', { style: 'currency', currency: 'TND' })}{' '}
+                        ({payment?.reference || 'N/A'}) -{' '}
+                        {payment?.createdAt || payment?.date
+                          ? new Date(payment.createdAt ?? payment.date ?? '').toLocaleDateString('fr-FR')
+                          : 'N/A'}
                       </p>
                     ))}
                   </div>
                 </div>
               )}
 
-              {remaining > 0 && (
+              {remaining > 0 && invoice.statut !== 'ANNULEE' && (
                 <button
                   onClick={() => setPaymentForm(invoice)}
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded flex items-center justify-center hover:bg-blue-700"

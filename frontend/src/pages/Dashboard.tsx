@@ -2,10 +2,17 @@ import { useEffect, useState } from 'react'
 import { financeAPI, salesAPI, stockAPI } from '../api/client'
 import { Loader, AlertCircle } from 'lucide-react'
 
+interface DashboardSummary {
+  totalRevenue: number
+  totalOrders: number
+  totalProducts: number
+  lastUpdate: string
+}
+
 export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [stats, setStats] = useState<any>(null)
+  const [stats, setStats] = useState<DashboardSummary | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -17,15 +24,19 @@ export default function Dashboard() {
           stockAPI.getProducts().catch(() => ({ data: [] })),
         ])
 
+        const fin = financeRes.data as {
+          chiffreAffairesTTC?: number
+          totalMontant?: number
+        } | undefined
         setStats({
-          totalRevenue: financeRes.data?.totalMontant || 0,
+          totalRevenue: fin?.chiffreAffairesTTC ?? fin?.totalMontant ?? 0,
           totalOrders: ordersRes.data?.length || 0,
           totalProducts: productsRes.data?.length || 0,
           lastUpdate: new Date().toLocaleString('fr-FR'),
         })
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching dashboard:', err)
-        setError(err?.message || 'Erreur lors du chargement des données')
+        setError(err instanceof Error ? err.message : 'Erreur lors du chargement des données')
       } finally {
         setLoading(false)
       }

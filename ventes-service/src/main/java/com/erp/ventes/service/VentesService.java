@@ -151,6 +151,49 @@ public class VentesService {
         repo.deleteById(id);
     }
 
+    // ── RMI : toute la logique transactionnelle / JPA reste dans ce service ──
+
+    @Transactional(readOnly = true)
+    public String rmiGetCommandeNumero(Long id) {
+        return getOrThrow(id).getNumero();
+    }
+
+    @Transactional(readOnly = true)
+    public String rmiGetOrderClient(Long id) {
+        return getOrThrow(id).getClient();
+    }
+
+    @Transactional(readOnly = true)
+    public String rmiGetOrderStatusName(Long id) {
+        return getOrThrow(id).getStatut().name();
+    }
+
+    @Transactional(readOnly = true)
+    public double rmiGetOrderTotalAsDouble(Long id) {
+        return getOrThrow(id).getMontantTotal().doubleValue();
+    }
+
+    @Transactional(readOnly = true)
+    public int rmiCountOrdersByClientExact(String clientName) {
+        long n = repo.countOrdersForClient(clientName);
+        return n > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) n;
+    }
+
+    @Transactional
+    public Long rmiCreerCommandeSansLignes(String clientName, Double totalAmount, StatutCommande statut) {
+        String numero = "CMD-RMI-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
+        BigDecimal montant = totalAmount == null ? BigDecimal.ZERO : BigDecimal.valueOf(totalAmount);
+        Commande commande = Commande.builder()
+                .numero(numero)
+                .client(clientName)
+                .statut(statut)
+                .montantTotal(montant)
+                .lignes(new ArrayList<>())
+                .build();
+        Commande saved = repo.save(commande);
+        return saved.getId();
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     @SuppressWarnings("null")

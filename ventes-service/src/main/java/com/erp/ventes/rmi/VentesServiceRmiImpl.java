@@ -1,23 +1,21 @@
 package com.erp.ventes.rmi;
 
 import com.erp.rmi.VentesServiceRmi;
-import com.erp.ventes.model.Commande;
 import com.erp.ventes.model.Commande.StatutCommande;
-import com.erp.ventes.repository.CommandeRepository;
 import com.erp.ventes.service.VentesService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Locale;
 
+/**
+ * Façade RMI : une seule dépendance vers {@link VentesService} (transactions, repository, Stock Feign).
+ */
 @Slf4j
 @Service
 @ConditionalOnProperty(name = "rmi.enabled", havingValue = "true", matchIfMissing = true)
@@ -25,20 +23,12 @@ public class VentesServiceRmiImpl extends UnicastRemoteObject implements VentesS
 
     private static final long serialVersionUID = 1L;
 
-    private final CommandeRepository commandeRepository;
     private final VentesService ventesService;
 
-    public VentesServiceRmiImpl(CommandeRepository commandeRepository, VentesService ventesService)
-            throws RemoteException {
+    public VentesServiceRmiImpl(@Lazy VentesService ventesService) throws RemoteException {
         super();
-        this.commandeRepository = commandeRepository;
         this.ventesService = ventesService;
-        log.info("VentesService RMI relié au métier Ventes");
-    }
-
-    private Commande getOrThrow(Long id) {
-        return commandeRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Commande introuvable: " + id));
+        log.info("VentesService RMI -> délégué au bean VentesService");
     }
 
     @Override
@@ -52,17 +42,7 @@ public class VentesServiceRmiImpl extends UnicastRemoteObject implements VentesS
                     log.warn("Statut commande RMI inconnu '{}', défaut EN_ATTENTE", status);
                 }
             }
-            String numero = "CMD-RMI-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS"));
-            BigDecimal montant = totalAmount == null ? BigDecimal.ZERO : BigDecimal.valueOf(totalAmount);
-            Commande commande = Commande.builder()
-                    .numero(numero)
-                    .client(clientName)
-                    .statut(st)
-                    .montantTotal(montant)
-                    .lignes(new ArrayList<>())
-                    .build();
-            Commande saved = commandeRepository.save(commande);
-            return saved.getId();
+            return ventesService.rmiCreerCommandeSansLignes(clientName, totalAmount, st);
         } catch (Exception e) {
             log.error("RMI Ventes createOrder", e);
             throw new RemoteException(e.getMessage(), e);
@@ -72,8 +52,11 @@ public class VentesServiceRmiImpl extends UnicastRemoteObject implements VentesS
     @Override
     public String getOrderStatus(Long orderId) throws RemoteException {
         try {
-            return getOrThrow(orderId).getStatut().name();
+            return ventesService.rmiGetOrderStatusName(orderId);
         } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("RMI Ventes getOrderStatus", e);
             throw new RemoteException(e.getMessage(), e);
         }
     }
@@ -90,7 +73,8 @@ public class VentesServiceRmiImpl extends UnicastRemoteObject implements VentesS
                 case "LIVREE", "DELIVERED" -> ventesService.livrerCommande(orderId);
                 case "ANNULEE", "CANCELLED" -> ventesService.annulerCommande(orderId);
                 default ->
-                    throw new IllegalArgumentException("Statut vente inconnu ou non pilotable via RMI: " + status);
+                        throw new IllegalArgumentException(
+                                "Statut vente inconnu ou non pilotable via RMI: " + status);
             }
             return true;
         } catch (IllegalStateException | IllegalArgumentException e) {
@@ -104,8 +88,11 @@ public class VentesServiceRmiImpl extends UnicastRemoteObject implements VentesS
     @Override
     public Double getOrderTotal(Long orderId) throws RemoteException {
         try {
-            return getOrThrow(orderId).getMontantTotal().doubleValue();
+            return ventesService.rmiGetOrderTotalAsDouble(orderId);
         } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("RMI Ventes getOrderTotal", e);
             throw new RemoteException(e.getMessage(), e);
         }
     }
@@ -113,7 +100,7 @@ public class VentesServiceRmiImpl extends UnicastRemoteObject implements VentesS
     @Override
     public Integer countOrdersByClient(String clientName) throws RemoteException {
         try {
-            return (int) commandeRepository.countByClient(clientName);
+            return ventesService.rmiCountOrdersByClientExact(clientName);
         } catch (Exception e) {
             log.error("RMI Ventes countOrdersByClient", e);
             throw new RemoteException(e.getMessage(), e);
@@ -123,8 +110,11 @@ public class VentesServiceRmiImpl extends UnicastRemoteObject implements VentesS
     @Override
     public String getCommandeNumero(Long orderId) throws RemoteException {
         try {
-            return getOrThrow(orderId).getNumero();
+            return ventesService.rmiGetCommandeNumero(orderId);
         } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("RMI Ventes getCommandeNumero", e);
             throw new RemoteException(e.getMessage(), e);
         }
     }
@@ -132,8 +122,11 @@ public class VentesServiceRmiImpl extends UnicastRemoteObject implements VentesS
     @Override
     public String getOrderClient(Long orderId) throws RemoteException {
         try {
-            return getOrThrow(orderId).getClient();
+            return ventesService.rmiGetOrderClient(orderId);
         } catch (EntityNotFoundException e) {
+            throw new RemoteException(e.getMessage(), e);
+        } catch (Exception e) {
+            log.error("RMI Ventes getOrderClient", e);
             throw new RemoteException(e.getMessage(), e);
         }
     }

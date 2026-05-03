@@ -1,0 +1,167 @@
+version: '3.8'
+
+services:
+
+  # ─── Bases de données ───────────────────────────────────────────────────────
+
+  stock-db:
+    image: postgres:16-alpine
+    container_name: stock-db
+    environment:
+      POSTGRES_DB: stock_db
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp_secret
+    ports:
+      - "5433:5432"
+    volumes:
+      - stock-data:/var/lib/postgresql/data
+    networks:
+      - erp-net
+
+  ventes-db:
+    image: postgres:16-alpine
+    container_name: ventes-db
+    environment:
+      POSTGRES_DB: ventes_db
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp_secret
+    ports:
+      - "5434:5432"
+    volumes:
+      - ventes-data:/var/lib/postgresql/data
+    networks:
+      - erp-net
+
+  finance-db:
+    image: postgres:16-alpine
+    container_name: finance-db
+    environment:
+      POSTGRES_DB: finance_db
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp_secret
+    ports:
+      - "5435:5432"
+    volumes:
+      - finance-data:/var/lib/postgresql/data
+    networks:
+      - erp-net
+
+  # ─── Message Broker ──────────────────────────────────────────────────────────
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: erp
+      RABBITMQ_DEFAULT_PASS: erp_secret
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # Management UI
+    networks:
+      - erp-net
+
+  # ─── Services applicatifs ────────────────────────────────────────────────────
+
+  stock-service:
+    build: ./stock-service
+    container_name: stock-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://stock-db:5432/stock_db
+      SPRING_DATASOURCE_USERNAME: erp
+      SPRING_DATASOURCE_PASSWORD: erp_secret
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: erp
+      SPRING_RABBITMQ_PASSWORD: erp_secret
+      JAVA_TOOL_OPTIONS: "-Djava.rmi.server.hostname=stock-service"
+      RMI_ENABLED: "true"
+    ports:
+      - "8081:8081"
+      - "1099:1099"   # RMI Registry Port
+    depends_on:
+      - stock-db
+      - rabbitmq
+    networks:
+      - erp-net
+
+  ventes-service:
+    build: ./ventes-service
+    container_name: ventes-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://ventes-db:5432/ventes_db
+      SPRING_DATASOURCE_USERNAME: erp
+      SPRING_DATASOURCE_PASSWORD: erp_secret
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: erp
+      SPRING_RABBITMQ_PASSWORD: erp_secret
+      STOCK_SERVICE_URL: http://stock-service:8081
+      JAVA_TOOL_OPTIONS: "-Djava.rmi.server.hostname=ventes-service"
+      RMI_ENABLED: "true"
+    ports:
+      - "8082:8082"
+      - "1100:1100"   # RMI Registry Port
+    depends_on:
+      - ventes-db
+      - rabbitmq
+      - stock-service
+    networks:
+      - erp-net
+
+  finance-service:
+    build: ./finance-service
+    container_name: finance-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://finance-db:5432/finance_db
+      SPRING_DATASOURCE_USERNAME: erp
+      SPRING_DATASOURCE_PASSWORD: erp_secret
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: erp
+      SPRING_RABBITMQ_PASSWORD: erp_secret
+      JAVA_TOOL_OPTIONS: "-Djava.rmi.server.hostname=finance-service"
+      RMI_ENABLED: "true"
+    ports:
+      - "8083:8083"
+      - "1101:1101"   # RMI Registry Port
+    depends_on:
+      - finance-db
+      - rabbitmq
+    networks:
+      - erp-net
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      STOCK_SERVICE_URL: http://stock-service:8081
+      VENTES_SERVICE_URL: http://ventes-service:8082
+      FINANCE_SERVICE_URL: http://finance-service:8083
+    depends_on:
+      - stock-service
+      - ventes-service
+      - finance-service
+    networks:
+      - erp-net
+
+  # ─── Frontend ────────────────────────────────────────────────────────
+
+  frontend:
+    build: ./frontend
+    container_name: erp-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://api-gateway:8080/api
+    depends_on:
+      - api-gateway
+    networks:
+      - erp-net
+
+volumes:
+  stock-data:
+  ventes-data:
+  finance-data:
+
+networks:
+  erp-net:
+    driver: bridge

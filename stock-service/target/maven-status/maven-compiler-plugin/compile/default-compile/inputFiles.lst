@@ -1,0 +1,13 @@
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\rmi\StockServiceRmiImpl.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\StockServiceApplication.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\dto\ProduitDto.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\messaging\StockEventPublisher.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\messaging\RabbitMQConfig.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\repository\ProduitRepository.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\exception\GlobalExceptionHandler.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\model\Produit.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\service\RmiCommunicationService.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\config\RmiStockClientConfiguration.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\config\RmiStockConfiguration.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\service\StockService.java
+C:\Users\ADMIN\mini_erp\stock-service\src\main\java\com\erp\stock\controller\StockController.java

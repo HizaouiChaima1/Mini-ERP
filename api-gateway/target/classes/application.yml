@@ -1,0 +1,59 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        # ── Stock Service ────────────────────────────────────────────────────
+        - id: stock-service
+          uri: ${STOCK_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/stock/**
+          filters:
+            - StripPrefix=2
+
+        # ── Ventes Service ───────────────────────────────────────────────────
+        - id: ventes-service
+          uri: ${VENTES_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/ventes/**
+          filters:
+            - StripPrefix=2
+
+        # ── Finance Service ──────────────────────────────────────────────────
+        - id: finance-service
+          uri: ${FINANCE_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/finance/**
+          filters:
+            - StripPrefix=2
+
+      globalcors:
+        corsConfigurations:
+          "[/**]":
+            allowedOrigins:
+              - "http://localhost:3000"
+              - "http://localhost:3001"
+              - "http://erp-frontend:3000"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: "*"
+            maxAge: 3600
+            allowCredentials: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    gateway:
+      enabled: true
